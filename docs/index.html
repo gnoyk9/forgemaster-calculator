@@ -54,6 +54,8 @@
     <div class="card">
       <h2 style="margin-top:0">Summary</h2>
       <div class="row" style="margin-bottom:.75rem"><label>Total HP</label><input id="total-hp" class="small" readonly><label style="width:120px">Total Damage</label><input id="total-dmg" class="small" readonly></div>
+      <h3 style="margin:.5rem 0 .25rem">Substats</h3>
+      <div id="substats-list" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem;color:#0f172a"></div>
       <h3 style="margin:.5rem 0 .25rem">Current Data (JSON)</h3>
       <div id="preview" class="summary">{ }</div>
     </div>
@@ -191,29 +193,53 @@
       return data;
     }
 
-    function updatePreview(){
-      const data = readForm();
-      preview.textContent = JSON.stringify(data,null,2);
-      // live totals
-      const totalHp = data.slots.reduce((s,x)=>s+x.hp,0);
-      const totalDmg = data.slots.reduce((s,x)=>s+x.dmg,0);
-      totalHpInput.value = totalHp;
-      totalDmgInput.value = totalDmg;
+    function getSubstatLabel(key){
+      const found = SUBSTAT_OPTIONS.find(o=>o.v===key);
+      return found ? found.t : key;
     }
 
-    function computeSummary(){
-      // Simple compute: totals and consolidated substats
+    function getTotals(){
       const d = readForm();
       const totals = {totalHp:0,totalDmg:0,substats:{}};
       d.slots.forEach(s=>{
-        totals.totalHp += s.hp;
-        totals.totalDmg += s.dmg;
-        if(s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + s.sub1v;
-        if(s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + s.sub2v;
+        totals.totalHp += (s.hp || 0);
+        totals.totalDmg += (s.dmg || 0);
+        if(s.sub1 && s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + (s.sub1v || 0);
+        if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
       });
+      return {d,totals};
+    }
+
+    function renderSubstats(substats){
+      const container = document.getElementById('substats-list');
+      container.innerHTML = '';
+      const entries = Object.entries(substats).filter(([k,v])=>v && v !== 0);
+      if(entries.length===0){
+        const none = document.createElement('div'); none.style.color='#64748b'; none.textContent = 'No substats entered'; container.appendChild(none); return;
+      }
+      entries.forEach(([k,v])=>{
+        const el = document.createElement('div');
+        el.style.background = '#eef2f6'; el.style.borderRadius='6px'; el.style.padding='6px 8px'; el.style.fontSize='.9rem';
+        el.textContent = `${getSubstatLabel(k)}: ${v}`;
+        container.appendChild(el);
+      });
+    }
+
+    function updatePreview(){
+      const {d,totals} = getTotals();
       preview.textContent = JSON.stringify({summary:totals,slots:d.slots},null,2);
-      totalHpInput.value = totals.totalHp;
-      totalDmgInput.value = totals.totalDmg;
+      // live totals
+      totalHpInput.value = totals.totalHp || 0;
+      totalDmgInput.value = totals.totalDmg || 0;
+      renderSubstats(totals.substats);
+    }
+
+    function computeSummary(){
+      const {d,totals} = getTotals();
+      preview.textContent = JSON.stringify({summary:totals,slots:d.slots},null,2);
+      totalHpInput.value = totals.totalHp || 0;
+      totalDmgInput.value = totals.totalDmg || 0;
+      renderSubstats(totals.substats);
     }
 
     function saveLocal(){
