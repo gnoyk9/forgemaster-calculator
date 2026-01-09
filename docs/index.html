@@ -29,7 +29,7 @@
   <div class="wrap">
     <header>
       <h1>Forgemaster Calculator — DPS Builder</h1>
-      <div>Slots: <strong>8</strong></div>
+      <div>Slots: <strong id="slot-count">8</strong></div>
     </header>
 
     <div class="card">
@@ -39,11 +39,14 @@
       <form id="dps-form">
         <div id="slots" class="slots"></div>
 
-        <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center">
+        <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <button id="compute" type="button">Compute Summary</button>
           <button id="save" type="button">Save (local)</button>
           <button id="load" type="button">Load (local)</button>
           <button id="reset" type="button">Reset</button>
+          <button id="export" type="button">Export JSON</button>
+          <input id="import-file" type="file" accept="application/json" style="display:none" />
+          <button id="import" type="button">Import JSON</button>
         </div>
       </form>
     </div>
@@ -76,7 +79,15 @@
       {v:'resist', t:'Effect Resistance'}
     ];
 
-    const SLOTS = 8;
+    // Define slot names here (edit to customize)
+    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt'];
+    // slots with HP only
+    const HEALTH_ONLY = ['head','chest','boots','belt'];
+    // computed helper for damage-only slots
+    const DAMAGE_ONLY = SLOT_NAMES.filter(n=>!HEALTH_ONLY.includes(n));
+    // simple capitalization helper for UI
+    function cap(s){ return (typeof s==='string' && s.length>0) ? (s[0].toUpperCase()+s.slice(1)) : s; }
+    const SLOTS = SLOT_NAMES.length;
     const slotsContainer = document.getElementById('slots');
     const preview = document.getElementById('preview');
     const totalHpInput = document.getElementById('total-hp');
@@ -93,7 +104,9 @@
 
     function makeSlot(i){
       const div = document.createElement('div'); div.className='slot';
-      const title = document.createElement('div'); title.style.fontWeight='600'; title.style.marginBottom='8px'; title.textContent='Slot '+(i+1);
+      const title = document.createElement('div'); title.style.fontWeight='600'; title.style.marginBottom='8px';
+      const slotName = SLOT_NAMES[i] || ('Slot '+(i+1));
+      title.textContent = cap(slotName);
       div.appendChild(title);
 
       // HP & DMG row
@@ -102,6 +115,17 @@
       const inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.value='0'; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
       const labDmg = document.createElement('label'); labDmg.textContent='Damage'; labDmg.style.width='75px';
       const inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.value='0'; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+
+      // disable fields based on slot role
+      if(HEALTH_ONLY.includes(slotName)){
+        inpDmg.value = 0; inpDmg.disabled = true; inpDmg.style.opacity = 0.6;
+      } else {
+        // damage-only or general -> if in DAMAGE_ONLY, disable HP
+        if(DAMAGE_ONLY.includes(slotName)){
+          inpHp.value = 0; inpHp.disabled = true; inpHp.style.opacity = 0.6;
+        }
+      }
+
       row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
       div.appendChild(row1);
 
@@ -127,23 +151,31 @@
     }
 
     function init(){
+      // update visible slot count
+      const sc = document.getElementById('slot-count'); if(sc) sc.textContent = SLOTS;
       for(let i=0;i<SLOTS;i++) slotsContainer.appendChild(makeSlot(i));
       document.getElementById('compute').addEventListener('click', computeSummary);
       document.getElementById('save').addEventListener('click', saveLocal);
       document.getElementById('load').addEventListener('click', loadLocal);
       document.getElementById('reset').addEventListener('click', resetForm);
+      document.getElementById('export').addEventListener('click', exportJson);
+      const importFile = document.getElementById('import-file');
+      document.getElementById('import').addEventListener('click', ()=>importFile.click());
+      importFile.addEventListener('change', importJson);
       updatePreview();
     }
 
     function readForm(){
       const data = {slots:[]};
       for(let i=0;i<SLOTS;i++){
-        const hp = Number(document.querySelector(`[name=slot_${i}_hp`]).value) || 0;
-        const dmg = Number(document.querySelector(`[name=slot_${i}_dmg`]).value) || 0;
-        const sub1 = document.querySelector(`[name=slot_${i}_sub_1`]).value;
-        const sub1v = Number(document.querySelector(`[name=slot_${i}_sub_1_val`]).value) || 0;
-        const sub2 = document.querySelector(`[name=slot_${i}_sub_2`]).value;
-        const sub2v = Number(document.querySelector(`[name=slot_${i}_sub_2_val`]).value) || 0;
+        let hp = Number(document.querySelector(`[name="slot_${i}_hp"]`).value) || 0;
+        let dmg = Number(document.querySelector(`[name="slot_${i}_dmg"]`).value) || 0;
+        const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`).value;
+        const sub1v = Number(document.querySelector(`[name="slot_${i}_sub_1_val"]`).value) || 0;
+        const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`).value;
+        const sub2v = Number(document.querySelector(`[name="slot_${i}_sub_2_val"]`).value) || 0;
+        const slotName = SLOT_NAMES[i];
+        if(HEALTH_ONLY.includes(slotName)) dmg = 0; else hp = 0; 
         data.slots.push({hp,dmg,sub1,sub1v,sub2,sub2v});
       }
       return data;
@@ -184,26 +216,89 @@
       if(!raw){alert('No saved data');return}
       const obj = JSON.parse(raw);
       obj.slots.forEach((s,i)=>{
-        const hp = document.querySelector(`[name=slot_${i}_hp`]); if(hp) hp.value = s.hp;
-        const dmg = document.querySelector(`[name=slot_${i}_dmg`]); if(dmg) dmg.value = s.dmg;
-        const sub1 = document.querySelector(`[name=slot_${i}_sub_1`]); if(sub1) sub1.value = s.sub1;
-        const sub1v = document.querySelector(`[name=slot_${i}_sub_1_val`]); if(sub1v) sub1v.value = s.sub1v;
-        const sub2 = document.querySelector(`[name=slot_${i}_sub_2`]); if(sub2) sub2.value = s.sub2;
-        const sub2v = document.querySelector(`[name=slot_${i}_sub_2_val`]); if(sub2v) sub2v.value = s.sub2v;
+        const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
+        const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
+        if(hpEl) hpEl.value = s.hp || 0;
+        if(dmgEl) dmgEl.value = s.dmg || 0;
+        // enforce disabled/zero state
+        const slotName = SLOT_NAMES[i];
+        if(HEALTH_ONLY.includes(slotName)){
+          if(dmgEl){ dmgEl.value = 0; dmgEl.disabled = true; dmgEl.style.opacity = 0.6; }
+          if(hpEl) hpEl.disabled = false;
+        } else {
+          if(hpEl){ hpEl.value = 0; hpEl.disabled = true; hpEl.style.opacity = 0.6; }
+          if(dmgEl) dmgEl.disabled = false;
+        }
+        const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1;
+        const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v;
+        const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = s.sub2;
+        const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v;
       });
       updatePreview();
       alert('Loaded saved data');
     }
 
+    function exportJson(){
+      const data = readForm();
+      const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dps_builder.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function importJson(e){
+      const file = e.target.files && e.target.files[0];
+      if(!file){ alert('No file selected'); return; }
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const obj = JSON.parse(reader.result);
+          if(!obj || !Array.isArray(obj.slots)){
+            alert('Invalid JSON format: expected { slots: [...] }');
+            return;
+          }
+          // populate slots (fill missing slots with defaults)
+          for(let i=0;i<SLOTS;i++){
+            const s = obj.slots[i] || {hp:0,dmg:0,sub1:'none',sub1v:0,sub2:'none',sub2v:0};
+            const hpEl = document.querySelector(`[name="slot_${i}_hp"]`); if(hpEl) hpEl.value = s.hp || 0;
+            const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`); if(dmgEl) dmgEl.value = s.dmg || 0;
+            const slotName = SLOT_NAMES[i];
+            if(HEALTH_ONLY.includes(slotName)){
+              if(dmgEl){ dmgEl.value = 0; dmgEl.disabled = true; dmgEl.style.opacity = 0.6; }
+              if(hpEl) hpEl.disabled = false;
+            } else {
+              if(hpEl){ hpEl.value = 0; hpEl.disabled = true; hpEl.style.opacity = 0.6; }
+              if(dmgEl) dmgEl.disabled = false;
+            }
+            const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1 || 'none';
+            const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v || 0;
+            const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = s.sub2 || 'none';
+            const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v || 0;
+          }
+          updatePreview();
+          e.target.value = ''; // reset file input so re-importing same file works
+          alert('Imported JSON successfully');
+        }catch(err){
+          alert('Error parsing JSON: '+err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
     function resetForm(){
       if(!confirm('Reset all values to 0?')) return;
       for(let i=0;i<SLOTS;i++){
-        document.querySelector(`[name=slot_${i}_hp`]).value = 0;
-        document.querySelector(`[name=slot_${i}_dmg`]).value = 0;
-        document.querySelector(`[name=slot_${i}_sub_1`]).value = 'none';
-        document.querySelector(`[name=slot_${i}_sub_1_val`]).value = 0;
-        document.querySelector(`[name=slot_${i}_sub_2`]).value = 'none';
-        document.querySelector(`[name=slot_${i}_sub_2_val`]).value = 0;
+        document.querySelector(`[name="slot_${i}_hp"]`).value = 0;
+        document.querySelector(`[name="slot_${i}_dmg"]`).value = 0;
+        document.querySelector(`[name="slot_${i}_sub_1"]`).value = 'none';
+        document.querySelector(`[name="slot_${i}_sub_1_val"]`).value = 0;
+        document.querySelector(`[name="slot_${i}_sub_2"]`).value = 'none';
+        document.querySelector(`[name="slot_${i}_sub_2_val"]`).value = 0;
       }
       updatePreview();
     }
