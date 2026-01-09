@@ -66,17 +66,19 @@
   <script>
     const SUBSTAT_OPTIONS = [
       {v:'none', t:'None'},
-      {v:'hp_flat', t:'HP (flat)'},
-      {v:'hp_pct', t:'HP %'},
-      {v:'atk_flat', t:'ATK (flat)'},
-      {v:'atk_pct', t:'ATK %'},
-      {v:'def_flat', t:'DEF (flat)'},
-      {v:'def_pct', t:'DEF %'},
-      {v:'spd', t:'SPD'},
+      {v:'atk_speed', t:'Attack Speed'},
+      {v:'blk_rate', t:'Block'},
       {v:'crit_rate', t:'Crit Rate'},
-      {v:'crit_dmg', t:'Crit DMG'},
-      {v:'effect', t:'Effectiveness'},
-      {v:'resist', t:'Effect Resistance'}
+      {v:'crit_dmg', t:'Crit Damage'},
+      {v:'dmg', t:'Damage'},
+      {v:'double_rate', t:'Double chance'},
+      {v:'hp_regen', t:'Health regen'},
+      {v:'health', t:'Health'},
+      {v:'life_steal', t:'Life steal'},
+      {v:'melee_dmg', t:'Melee Damage'},
+      {v:'ranged_dmg', t:'Ranged Damage'},
+      {v:'skill_cd', t:'Skill CD Reduction'},
+      {v:'skill_dmg', t:'Skill Damage'}
     ];
 
     // Define slot names here (edit to customize)
@@ -109,43 +111,45 @@
       title.textContent = cap(slotName);
       div.appendChild(title);
 
-      // HP & DMG row
+      // HP & DMG row — create only the relevant input(s)
       const row1 = document.createElement('div'); row1.className='row';
       const labHp = document.createElement('label'); labHp.textContent='Health';
-      const inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.value='0'; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
+      let inpHp = null;
       const labDmg = document.createElement('label'); labDmg.textContent='Damage'; labDmg.style.width='75px';
-      const inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.value='0'; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+      let inpDmg = null;
 
-      // disable fields based on slot role
       if(HEALTH_ONLY.includes(slotName)){
-        inpDmg.value = 0; inpDmg.disabled = true; inpDmg.style.opacity = 0.6;
+        inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
+        row1.appendChild(labHp); row1.appendChild(inpHp);
+      } else if(DAMAGE_ONLY.includes(slotName)){
+        inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+        row1.appendChild(labDmg); row1.appendChild(inpDmg);
       } else {
-        // damage-only or general -> if in DAMAGE_ONLY, disable HP
-        if(DAMAGE_ONLY.includes(slotName)){
-          inpHp.value = 0; inpHp.disabled = true; inpHp.style.opacity = 0.6;
-        }
+        // fallback: create both
+        inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
+        inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+        row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
       }
 
-      row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
       div.appendChild(row1);
 
       // Substat rows
       const row2 = document.createElement('div'); row2.className='row';
       const lab1 = document.createElement('label'); lab1.textContent='Substat 1';
       const sel1 = createSelect(`slot_${i}_sub_1`);
-      const val1 = document.createElement('input'); val1.type='number'; val1.name=`slot_${i}_sub_1_val`; val1.value='0'; val1.step='any'; val1.className='small';
+      const val1 = document.createElement('input'); val1.type='number'; val1.name=`slot_${i}_sub_1_val`; val1.step='any'; val1.className='small';
       row2.appendChild(lab1); row2.appendChild(sel1); row2.appendChild(val1);
       div.appendChild(row2);
 
       const row3 = document.createElement('div'); row3.className='row';
       const lab2 = document.createElement('label'); lab2.textContent='Substat 2';
       const sel2 = createSelect(`slot_${i}_sub_2`);
-      const val2 = document.createElement('input'); val2.type='number'; val2.name=`slot_${i}_sub_2_val`; val2.value='0'; val2.step='any'; val2.className='small';
+      const val2 = document.createElement('input'); val2.type='number'; val2.name=`slot_${i}_sub_2_val`; val2.step='any'; val2.className='small';
       row3.appendChild(lab2); row3.appendChild(sel2); row3.appendChild(val2);
       div.appendChild(row3);
 
-      // Event listeners
-      [inpHp, inpDmg, sel1, sel2, val1, val2].forEach(el=>el.addEventListener('input', updatePreview));
+      // Event listeners (attach only to existing elements)
+      [inpHp, inpDmg, sel1, sel2, val1, val2].filter(Boolean).forEach(el=>el.addEventListener('input', updatePreview));
 
       return div;
     }
@@ -168,14 +172,20 @@
     function readForm(){
       const data = {slots:[]};
       for(let i=0;i<SLOTS;i++){
-        let hp = Number(document.querySelector(`[name="slot_${i}_hp"]`).value) || 0;
-        let dmg = Number(document.querySelector(`[name="slot_${i}_dmg"]`).value) || 0;
-        const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`).value;
-        const sub1v = Number(document.querySelector(`[name="slot_${i}_sub_1_val"]`).value) || 0;
-        const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`).value;
-        const sub2v = Number(document.querySelector(`[name="slot_${i}_sub_2_val"]`).value) || 0;
+        const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
+        const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
+        let hp = null;
+        let dmg = null;
+        if(hpEl){ hp = (hpEl.value === '' ? null : Number(hpEl.value)); }
+        if(dmgEl){ dmg = (dmgEl.value === '' ? null : Number(dmgEl.value)); }
+        const sub1 = document.querySelector(`[name=\"slot_${i}_sub_1\"]`)?.value || 'none';
+        const sub1vRaw = document.querySelector(`[name=\"slot_${i}_sub_1_val\"]`)?.value;
+        const sub1v = (sub1vRaw === '' || sub1vRaw === undefined) ? null : Number(sub1vRaw);
+        const sub2 = document.querySelector(`[name=\"slot_${i}_sub_2\"]`)?.value || 'none';
+        const sub2vRaw = document.querySelector(`[name=\"slot_${i}_sub_2_val\"]`)?.value;
+        const sub2v = (sub2vRaw === '' || sub2vRaw === undefined) ? null : Number(sub2vRaw);
         const slotName = SLOT_NAMES[i];
-        if(HEALTH_ONLY.includes(slotName)) dmg = 0; else hp = 0; 
+        if(HEALTH_ONLY.includes(slotName)) dmg = 0; else if(DAMAGE_ONLY.includes(slotName)) hp = 0;
         data.slots.push({hp,dmg,sub1,sub1v,sub2,sub2v});
       }
       return data;
@@ -218,8 +228,8 @@
       obj.slots.forEach((s,i)=>{
         const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
         const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
-        if(hpEl) hpEl.value = s.hp || 0;
-        if(dmgEl) dmgEl.value = s.dmg || 0;
+        if(hpEl) hpEl.value = (s.hp !== undefined && s.hp !== null) ? s.hp : '';
+        if(dmgEl) dmgEl.value = (s.dmg !== undefined && s.dmg !== null) ? s.dmg : ''; 
         // enforce disabled/zero state
         const slotName = SLOT_NAMES[i];
         if(HEALTH_ONLY.includes(slotName)){
@@ -265,15 +275,14 @@
           // populate slots (fill missing slots with defaults)
           for(let i=0;i<SLOTS;i++){
             const s = obj.slots[i] || {hp:0,dmg:0,sub1:'none',sub1v:0,sub2:'none',sub2v:0};
-            const hpEl = document.querySelector(`[name="slot_${i}_hp"]`); if(hpEl) hpEl.value = s.hp || 0;
-            const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`); if(dmgEl) dmgEl.value = s.dmg || 0;
+            const hpEl = document.querySelector(`[name=\"slot_${i}_hp\"]`); if(hpEl) hpEl.value = (s.hp !== undefined && s.hp !== null) ? s.hp : '';
+            const dmgEl = document.querySelector(`[name=\"slot_${i}_dmg\"]`); if(dmgEl) dmgEl.value = (s.dmg !== undefined && s.dmg !== null) ? s.dmg : ''; 
             const slotName = SLOT_NAMES[i];
             if(HEALTH_ONLY.includes(slotName)){
-              if(dmgEl){ dmgEl.value = 0; dmgEl.disabled = true; dmgEl.style.opacity = 0.6; }
-              if(hpEl) hpEl.disabled = false;
+              // ensure damage is zeroed if no element
+              if(dmgEl){ dmgEl.value = 0; }
             } else {
-              if(hpEl){ hpEl.value = 0; hpEl.disabled = true; hpEl.style.opacity = 0.6; }
-              if(dmgEl) dmgEl.disabled = false;
+              if(hpEl){ hpEl.value = 0; }
             }
             const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1 || 'none';
             const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v || 0;
@@ -293,12 +302,14 @@
     function resetForm(){
       if(!confirm('Reset all values to 0?')) return;
       for(let i=0;i<SLOTS;i++){
-        document.querySelector(`[name="slot_${i}_hp"]`).value = 0;
-        document.querySelector(`[name="slot_${i}_dmg"]`).value = 0;
-        document.querySelector(`[name="slot_${i}_sub_1"]`).value = 'none';
-        document.querySelector(`[name="slot_${i}_sub_1_val"]`).value = 0;
-        document.querySelector(`[name="slot_${i}_sub_2"]`).value = 'none';
-        document.querySelector(`[name="slot_${i}_sub_2_val"]`).value = 0;
+        const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
+        const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
+        if(hpEl) hpEl.value = '';
+        if(dmgEl) dmgEl.value = '';
+        const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = 'none';
+        const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = 0;
+        const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = 'none';
+        const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = 0;
       }
       updatePreview();
     }
