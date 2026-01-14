@@ -87,7 +87,7 @@
     ];
 
     // Define slot names here (edit to customize)
-    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt','mount'];
+    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt','mount','pet1','pet2','pet3'];
     // slots with HP only
     const HEALTH_ONLY = ['head','chest','boots','belt'];
     // computed helper for damage-only slots
@@ -130,6 +130,14 @@
         row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
         // small note
         const note = document.createElement('div'); note.style.fontSize='0.8rem'; note.style.color='#64748b'; note.style.marginTop='6px'; note.textContent = 'Mount: HP & Damage are added to substats (Health/Damage)';
+        div.appendChild(note);
+      } else if(slotName && slotName.startsWith && slotName.startsWith('pet')){
+        // Pets have both HP and Damage and contribute to totals like normal slots
+        inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
+        inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+        row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
+        // optional note for pets
+        const note = document.createElement('div'); note.style.fontSize='0.8rem'; note.style.color='#64748b'; note.style.marginTop='6px'; note.textContent = 'Pet: HP & Damage contribute to total HP/Damage';
         div.appendChild(note);
       } else if(HEALTH_ONLY.includes(slotName)){
         inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
@@ -201,8 +209,8 @@
         const slotName = SLOT_NAMES[i];
         if(HEALTH_ONLY.includes(slotName)){
           dmg = 0;
-        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount'){
-          // do not zero mount HP — mount has both inputs that map to substats
+        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet'))){
+          // do not zero mount or pet HP — they have both inputs
           hp = 0;
         }
         data.slots.push({hp,dmg,sub1,sub1v,sub2,sub2v});
@@ -372,11 +380,11 @@
         if(HEALTH_ONLY.includes(slotName)){
           if(dmgEl){ dmgEl.value = 0; dmgEl.disabled = true; dmgEl.style.opacity = 0.6; }
           if(hpEl) hpEl.disabled = false;
-        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount'){
+        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet'))){
           if(hpEl){ hpEl.value = 0; hpEl.disabled = true; hpEl.style.opacity = 0.6; }
           if(dmgEl) dmgEl.disabled = false;
         } else {
-          // slots with both inputs (including mount) — ensure both enabled
+          // slots with both inputs (including mount and pets) — ensure both enabled
           if(hpEl) hpEl.disabled = false;
           if(dmgEl) dmgEl.disabled = false;
         }
@@ -422,10 +430,10 @@
             if(HEALTH_ONLY.includes(slotName)){
               // ensure damage is zeroed if present
               if(dmgEl){ dmgEl.value = 0; }
-            } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount'){
+            } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet'))){
               if(hpEl){ hpEl.value = 0; }
             } else {
-              // mount and other dual slots: keep both values as provided
+              // mount, pets, and other dual slots: keep both values as provided
             }
             const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1 || 'none';
             const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v || 0;
