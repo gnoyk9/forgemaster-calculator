@@ -87,7 +87,7 @@
     ];
 
     // Define slot names here (edit to customize)
-    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt'];
+    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt','mount'];
     // slots with HP only
     const HEALTH_ONLY = ['head','chest','boots','belt'];
     // computed helper for damage-only slots
@@ -123,7 +123,15 @@
       const labDmg = document.createElement('label'); labDmg.textContent='Damage'; labDmg.style.width='75px';
       let inpDmg = null;
 
-      if(HEALTH_ONLY.includes(slotName)){
+      if(slotName === 'mount'){
+        // Mount has both HP and Damage and contributes those to substats instead of totals
+        inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
+        inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+        row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
+        // small note
+        const note = document.createElement('div'); note.style.fontSize='0.8rem'; note.style.color='#64748b'; note.style.marginTop='6px'; note.textContent = 'Mount: HP & Damage are added to substats (Health/Damage)';
+        div.appendChild(note);
+      } else if(HEALTH_ONLY.includes(slotName)){
         inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
         row1.appendChild(labHp); row1.appendChild(inpHp);
       } else if(DAMAGE_ONLY.includes(slotName)){
@@ -154,7 +162,7 @@
       div.appendChild(row3);
 
       // Event listeners (attach only to existing elements)
-      [inpHp, inpDmg, sel1, sel2, val1, val2].filter(Boolean).forEach(el=>el.addEventListener('input', ()=>markDirty(true)));
+      [inpHp, inpDmg, sel1, sel2, val1, val2].filter(Boolean).forEach(el=>el.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); }));
 
       return div;
     }
@@ -191,7 +199,12 @@
         const sub2vRaw = document.querySelector(`[name=\"slot_${i}_sub_2_val\"]`)?.value;
         const sub2v = (sub2vRaw === '' || sub2vRaw === undefined) ? null : Number(sub2vRaw);
         const slotName = SLOT_NAMES[i];
-        if(HEALTH_ONLY.includes(slotName)) dmg = 0; else if(DAMAGE_ONLY.includes(slotName)) hp = 0;
+        if(HEALTH_ONLY.includes(slotName)){
+          dmg = 0;
+        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount'){
+          // do not zero mount HP — mount has both inputs that map to substats
+          hp = 0;
+        }
         data.slots.push({hp,dmg,sub1,sub1v,sub2,sub2v});
       }
       return data;
@@ -205,9 +218,16 @@
     function getTotals(){
       const d = readForm();
       const totals = {totalHp:0,totalDmg:0,substats:{}};
-      d.slots.forEach(s=>{
-        totals.totalHp += (s.hp || 0);
-        totals.totalDmg += (s.dmg || 0);
+      d.slots.forEach((s,idx)=>{
+        const name = SLOT_NAMES[idx];
+        if(name === 'mount'){
+          // mount HP/Damage are added to substats 'health' and 'dmg'
+          if(s.hp) totals.substats['health'] = (totals.substats['health'] || 0) + s.hp;
+          if(s.dmg) totals.substats['dmg'] = (totals.substats['dmg'] || 0) + s.dmg;
+        } else {
+          totals.totalHp += (s.hp || 0);
+          totals.totalDmg += (s.dmg || 0);
+        }
         if(s.sub1 && s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + (s.sub1v || 0);
         if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
       });
@@ -226,6 +246,36 @@
         el.style.background = '#eef2f6'; el.style.borderRadius='6px'; el.style.padding='6px 8px'; el.style.fontSize='.9rem';
         el.textContent = `${getSubstatLabel(k)}: ${v}`;
         container.appendChild(el);
+      });
+    }
+
+    // Highlighting differences between current form and stored JSON
+    function setHighlight(el, on){ if(!el) return; el.style.backgroundColor = on ? '#fff7cc' : ''; }
+
+    function highlightDiffs(){
+      // clear all highlights first
+      for(let i=0;i<SLOTS;i++){
+        const els = [
+          document.querySelector(`[name="slot_${i}_hp"]`),
+          document.querySelector(`[name="slot_${i}_dmg"]`),
+          document.querySelector(`[name="slot_${i}_sub_1"]`),
+          document.querySelector(`[name="slot_${i}_sub_1_val"]`),
+          document.querySelector(`[name="slot_${i}_sub_2"]`),
+          document.querySelector(`[name="slot_${i}_sub_2_val"]`)
+        ];
+        els.forEach(e=>{ if(e) setHighlight(e,false); });
+      }
+      if(!storedData) return;
+      storedData.slots.forEach((s,i)=>{
+        const slotName = SLOT_NAMES[i];
+        const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
+        const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
+        if(hpEl){ const curr = (hpEl.value === '' ? null : Number(hpEl.value)); const stored = (s.hp === undefined ? null : s.hp); setHighlight(hpEl, curr !== stored); }
+        if(dmgEl){ const curr = (dmgEl.value === '' ? null : Number(dmgEl.value)); const stored = (s.dmg === undefined ? null : s.dmg); setHighlight(dmgEl, curr !== stored); }
+        const sel1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sel1){ const curr = sel1.value || 'none'; const stored = s.sub1 || 'none'; setHighlight(sel1, curr !== stored); }
+        const val1 = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(val1){ const raw = val1.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub1v === undefined ? null : s.sub1v); setHighlight(val1, curr !== stored); }
+        const sel2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sel2){ const curr = sel2.value || 'none'; const stored = s.sub2 || 'none'; setHighlight(sel2, curr !== stored); }
+        const val2 = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(val2){ const raw = val2.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub2v === undefined ? null : s.sub2v); setHighlight(val2, curr !== stored); }
       });
     }
 
@@ -253,13 +303,20 @@
         setStatus('No stored data');
         document.getElementById('total-hp').value = 0;
         document.getElementById('total-dmg').value = 0;
+        highlightDiffs();
         return;
       }
       // compute totals and substats from storedData
       const totals = {totalHp:0,totalDmg:0,substats:{}};
-      storedData.slots.forEach(s=>{
-        totals.totalHp += (s.hp || 0);
-        totals.totalDmg += (s.dmg || 0);
+      storedData.slots.forEach((s,idx)=>{
+        const name = SLOT_NAMES[idx];
+        if(name === 'mount'){
+          if(s.hp) totals.substats['health'] = (totals.substats['health'] || 0) + s.hp;
+          if(s.dmg) totals.substats['dmg'] = (totals.substats['dmg'] || 0) + s.dmg;
+        } else {
+          totals.totalHp += (s.hp || 0);
+          totals.totalDmg += (s.dmg || 0);
+        }
         if(s.sub1 && s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + (s.sub1v || 0);
         if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
       });
@@ -268,12 +325,13 @@
       document.getElementById('total-hp').value = totals.totalHp || 0;
       document.getElementById('total-dmg').value = totals.totalDmg || 0;
       markDirty(false);
+      highlightDiffs();
     }
 
     function storeData(){
       storedData = readForm();
       renderStored();
-      // alert('Stored current form into JSON preview');
+      // alert('Stored current form into JSON preview');  // I do not want this alert when pressing store!
     }
 
     function updatePreview(){
@@ -309,13 +367,17 @@
         const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
         if(hpEl) hpEl.value = (s.hp !== undefined && s.hp !== null) ? s.hp : '';
         if(dmgEl) dmgEl.value = (s.dmg !== undefined && s.dmg !== null) ? s.dmg : ''; 
-        // enforce disabled/zero state
+        // enforce disabled/zero state for health-only or damage-only slots; mount has both
         const slotName = SLOT_NAMES[i];
         if(HEALTH_ONLY.includes(slotName)){
           if(dmgEl){ dmgEl.value = 0; dmgEl.disabled = true; dmgEl.style.opacity = 0.6; }
           if(hpEl) hpEl.disabled = false;
-        } else {
+        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount'){
           if(hpEl){ hpEl.value = 0; hpEl.disabled = true; hpEl.style.opacity = 0.6; }
+          if(dmgEl) dmgEl.disabled = false;
+        } else {
+          // slots with both inputs (including mount) — ensure both enabled
+          if(hpEl) hpEl.disabled = false;
           if(dmgEl) dmgEl.disabled = false;
         }
         const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1;
@@ -324,8 +386,7 @@
         const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v;
       });
       // loaded into form; stored JSON is not changed until you press Store
-      markDirty(true);
-      alert('Loaded saved data into the form (press Store to update stored JSON)');
+      markDirty(true);      highlightDiffs();      alert('Loaded saved data into the form (press Store to update stored JSON)');
     }
 
     function exportJson(){
@@ -359,10 +420,12 @@
             const dmgEl = document.querySelector(`[name=\"slot_${i}_dmg\"]`); if(dmgEl) dmgEl.value = (s.dmg !== undefined && s.dmg !== null) ? s.dmg : ''; 
             const slotName = SLOT_NAMES[i];
             if(HEALTH_ONLY.includes(slotName)){
-              // ensure damage is zeroed if no element
+              // ensure damage is zeroed if present
               if(dmgEl){ dmgEl.value = 0; }
-            } else {
+            } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount'){
               if(hpEl){ hpEl.value = 0; }
+            } else {
+              // mount and other dual slots: keep both values as provided
             }
             const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1 || 'none';
             const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v || 0;
@@ -371,6 +434,7 @@
           }
           // imported into form; press Store to update stored JSON
           markDirty(true);
+          highlightDiffs();
           e.target.value = ''; // reset file input so re-importing same file works
           alert('Imported JSON into form (press Store to update stored JSON)');
         }catch(err){
@@ -394,6 +458,7 @@
       }
       // preview (stored JSON) remains unchanged; mark form as dirty
       markDirty(true);
+      highlightDiffs();
     }
 
     // init
