@@ -57,6 +57,7 @@
     <div class="card">
       <h2 style="margin-top:0">Summary</h2>
       <div class="row" style="margin-bottom:.75rem"><label>Total HP</label><input id="total-hp" class="small" readonly><label style="width:120px">Total Damage</label><input id="total-dmg" class="small" readonly></div>
+      <div class="row" style="margin-bottom:.75rem"><label>DPS</label><input id="dps" class="small" readonly><label style="width:120px">HP Regen</label><input id="hp-regen" class="small" readonly></div>
       <h3 style="margin:.5rem 0 .25rem">Substats</h3>
       <div id="substats-list" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem;color:#0f172a"></div>
       <h3 style="margin:.5rem 0 .25rem">Current Data (JSON)</h3>
@@ -217,13 +218,12 @@
       return found ? found.t : key;
     }
 
-    function getTotals(){
-      const d = readForm();
+    // Compute totals and derived stats from an array of slots
+    function computeTotalsFromSlots(slots){
       const totals = {totalHp:0,totalDmg:0,substats:{}};
-      d.slots.forEach((s,idx)=>{
+      (slots || []).forEach((s,idx)=>{
         const name = SLOT_NAMES[idx];
         if(name === 'mount'){
-          // mount HP/Damage are added to substats 'health' and 'dmg'
           if(s.hp) totals.substats['health'] = (totals.substats['health'] || 0) + s.hp;
           if(s.dmg) totals.substats['dmg'] = (totals.substats['dmg'] || 0) + s.dmg;
         } else {
@@ -233,6 +233,24 @@
         if(s.sub1 && s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + (s.sub1v || 0);
         if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
       });
+      // Provisional DPS and HP Regen calculations:
+      const baseDamage = (totals.totalDmg || 0) + (totals.substats['dmg'] || 0);
+      const atkSpeedFactor = 1 + ((totals.substats['atk_speed'] || 0)/100);
+      const damagePercentFactor = 1 + (((totals.substats['melee_dmg'] || 0) + (totals.substats['ranged_dmg'] || 0) + (totals.substats['skill_dmg'] || 0))/100);
+      const doubleFactor = 1 + ((totals.substats['double_rate'] || 0)/100);
+      const critRate = Math.min(100, (totals.substats['crit_rate'] || 0))/100;
+      const critDmg = (totals.substats['crit_dmg'] || 0)/100;
+      const critFactor = 1 + (critRate * critDmg);
+      const dps = baseDamage * atkSpeedFactor * damagePercentFactor * doubleFactor * critFactor;
+      const hpRegen = (totals.totalHp || 0) * 0.01 + (totals.substats['hp_regen'] || 0) + dps * ((totals.substats['life_steal'] || 0)/100);
+      totals.dps = dps;
+      totals.hpRegen = hpRegen;
+      return totals;
+    }
+
+    function getTotals(){
+      const d = readForm();
+      const totals = computeTotalsFromSlots(d.slots);
       return {d,totals};
     }
 
@@ -305,33 +323,33 @@
         setStatus('No stored data');
         document.getElementById('total-hp').value = 0;
         document.getElementById('total-dmg').value = 0;
+        const dpsEl = document.getElementById('dps'); if(dpsEl) dpsEl.value = 0;
+        const hpReEl = document.getElementById('hp-regen'); if(hpReEl) hpReEl.value = 0;
         highlightDiffs();
         return;
       }
-      // compute totals and substats from storedData
-      const totals = {totalHp:0,totalDmg:0,substats:{}};
-      storedData.slots.forEach((s,idx)=>{
-        const name = SLOT_NAMES[idx];
-        if(name === 'mount'){
-          if(s.hp) totals.substats['health'] = (totals.substats['health'] || 0) + s.hp;
-          if(s.dmg) totals.substats['dmg'] = (totals.substats['dmg'] || 0) + s.dmg;
-        } else {
-          totals.totalHp += (s.hp || 0);
-          totals.totalDmg += (s.dmg || 0);
-        }
-        if(s.sub1 && s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + (s.sub1v || 0);
-        if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
-      });
+      // Use stored summary if present, otherwise compute and attach one
+      let totals;
+      if(storedData.summary){
+        totals = storedData.summary;
+      } else {
+        totals = computeTotalsFromSlots(storedData.slots || []);
+        storedData.summary = totals;
+      }
       if(previewEl) previewEl.textContent = JSON.stringify({summary:totals,slots:storedData.slots},null,2);
       if(subList) renderSubstats(totals.substats);
       document.getElementById('total-hp').value = totals.totalHp || 0;
       document.getElementById('total-dmg').value = totals.totalDmg || 0;
+      const dpsEl = document.getElementById('dps'); if(dpsEl) dpsEl.value = (totals.dps !== undefined ? totals.dps.toFixed(2) : 0);
+      const hpReEl = document.getElementById('hp-regen'); if(hpReEl) hpReEl.value = (totals.hpRegen !== undefined ? totals.hpRegen.toFixed(2) : 0);
       markDirty(false);
       highlightDiffs();
     }
 
     function storeData(){
       storedData = readForm();
+      // attach computed summary so renderStored can read derived values directly
+      storedData.summary = computeTotalsFromSlots(storedData.slots);
       renderStored();
       // alert('Stored current form into JSON preview');  // I do not want this alert when pressing store!
     }
@@ -343,6 +361,8 @@
       preview.textContent = JSON.stringify({summary:totals,slots:d.slots},null,2);
       totalHpInput.value = totals.totalHp || 0;
       totalDmgInput.value = totals.totalDmg || 0;
+      const dpsEl = document.getElementById('dps'); if(dpsEl) dpsEl.value = (totals.dps !== undefined ? totals.dps.toFixed(2) : 0);
+      const hpReEl = document.getElementById('hp-regen'); if(hpReEl) hpReEl.value = (totals.hpRegen !== undefined ? totals.hpRegen.toFixed(2) : 0);
       renderSubstats(totals.substats);
     }
 
@@ -351,6 +371,8 @@
       preview.textContent = JSON.stringify({summary:totals,slots:d.slots},null,2);
       totalHpInput.value = totals.totalHp || 0;
       totalDmgInput.value = totals.totalDmg || 0;
+      const dpsEl = document.getElementById('dps'); if(dpsEl) dpsEl.value = (totals.dps !== undefined ? totals.dps.toFixed(2) : 0);
+      const hpReEl = document.getElementById('hp-regen'); if(hpReEl) hpReEl.value = (totals.hpRegen !== undefined ? totals.hpRegen.toFixed(2) : 0);
       renderSubstats(totals.substats);
     }
 
@@ -413,6 +435,14 @@
           const obj = JSON.parse(reader.result);
           if(!obj || !Array.isArray(obj.slots)){
             alert('Invalid JSON format: expected { slots: [...] }');
+            return;
+          }
+          // If imported JSON already contains a computed summary, use it directly as stored data
+          if(obj.summary){
+            storedData = obj;
+            renderStored();
+            e.target.value = '';
+            alert('Imported JSON loaded as stored snapshot');
             return;
           }
           // populate slots (fill missing slots with defaults)
