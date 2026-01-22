@@ -88,7 +88,7 @@
     ];
 
     // Define slot names here (edit to customize)
-    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt','mount','pet1','pet2','pet3'];
+    const SLOT_NAMES = ['head','chest','gloves','necklace','ring','weapon','boots','belt','mount','pet1','pet2','pet3','skill_bonus'];
     // slots with HP only
     const HEALTH_ONLY = ['head','chest','boots','belt'];
     // computed helper for damage-only slots
@@ -129,6 +129,15 @@
         inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
         inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
         row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
+      } else if(slotName === 'skill_bonus'){
+        // Skill bonus has both HP and Damage and contributes to totals like normal slots, no substats
+        inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
+        inpDmg = document.createElement('input'); inpDmg.type='number'; inpDmg.name=`slot_${i}_dmg`; inpDmg.min='0'; inpDmg.step='1'; inpDmg.className='small';
+        row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
+        div.appendChild(row1);
+        // attach event listeners and return early (no substats for skill_bonus)
+        [inpHp, inpDmg].forEach(el=>el.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); }));
+        return div;
       } else if(slotName && slotName.startsWith && slotName.startsWith('pet')){
         // Pets have both HP and Damage and contribute to totals like normal slots
         inpHp = document.createElement('input'); inpHp.type='number'; inpHp.name=`slot_${i}_hp`; inpHp.min='0'; inpHp.step='1'; inpHp.className='small';
@@ -204,8 +213,8 @@
         const slotName = SLOT_NAMES[i];
         if(HEALTH_ONLY.includes(slotName)){
           dmg = 0;
-        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet'))){
-          // do not zero mount or pet HP — they have both inputs
+        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet')) && slotName !== 'skill_bonus'){
+          // do not zero mount, pet, or skill_bonus HP — they have both inputs
           hp = 0;
         }
         data.slots.push({hp,dmg,sub1,sub1v,sub2,sub2v});
@@ -287,16 +296,18 @@
         els.forEach(e=>{ if(e) setHighlight(e,false); });
       }
       if(!storedData) return;
+      // Helper: treat null and 0 as equivalent for numeric comparisons
+      const norm = (v) => (v === null ? 0 : v);
       storedData.slots.forEach((s,i)=>{
         const slotName = SLOT_NAMES[i];
         const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
         const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
-        if(hpEl){ const curr = (hpEl.value === '' ? null : Number(hpEl.value)); const stored = (s.hp === undefined ? null : s.hp); setHighlight(hpEl, curr !== stored); }
-        if(dmgEl){ const curr = (dmgEl.value === '' ? null : Number(dmgEl.value)); const stored = (s.dmg === undefined ? null : s.dmg); setHighlight(dmgEl, curr !== stored); }
+        if(hpEl){ const curr = (hpEl.value === '' ? null : Number(hpEl.value)); const stored = (s.hp === undefined ? null : s.hp); setHighlight(hpEl, norm(curr) !== norm(stored)); }
+        if(dmgEl){ const curr = (dmgEl.value === '' ? null : Number(dmgEl.value)); const stored = (s.dmg === undefined ? null : s.dmg); setHighlight(dmgEl, norm(curr) !== norm(stored)); }
         const sel1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sel1){ const curr = sel1.value || 'none'; const stored = s.sub1 || 'none'; setHighlight(sel1, curr !== stored); }
-        const val1 = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(val1){ const raw = val1.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub1v === undefined ? null : s.sub1v); setHighlight(val1, curr !== stored); }
+        const val1 = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(val1){ const raw = val1.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub1v === undefined ? null : s.sub1v); setHighlight(val1, norm(curr) !== norm(stored)); }
         const sel2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sel2){ const curr = sel2.value || 'none'; const stored = s.sub2 || 'none'; setHighlight(sel2, curr !== stored); }
-        const val2 = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(val2){ const raw = val2.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub2v === undefined ? null : s.sub2v); setHighlight(val2, curr !== stored); }
+        const val2 = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(val2){ const raw = val2.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub2v === undefined ? null : s.sub2v); setHighlight(val2, norm(curr) !== norm(stored)); }
       });
     }
 
@@ -392,16 +403,16 @@
         const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
         if(hpEl) hpEl.value = (s.hp !== undefined && s.hp !== null) ? s.hp : '';
         if(dmgEl) dmgEl.value = (s.dmg !== undefined && s.dmg !== null) ? s.dmg : ''; 
-        // enforce disabled/zero state for health-only or damage-only slots; mount has both
+        // enforce disabled/zero state for health-only or damage-only slots; mount, pets, and skill_bonus have both
         const slotName = SLOT_NAMES[i];
         if(HEALTH_ONLY.includes(slotName)){
           if(dmgEl){ dmgEl.value = 0; dmgEl.disabled = true; dmgEl.style.opacity = 0.6; }
           if(hpEl) hpEl.disabled = false;
-        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet'))){
+        } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet')) && slotName !== 'skill_bonus'){
           if(hpEl){ hpEl.value = 0; hpEl.disabled = true; hpEl.style.opacity = 0.6; }
           if(dmgEl) dmgEl.disabled = false;
         } else {
-          // slots with both inputs (including mount and pets) — ensure both enabled
+          // slots with both inputs (including mount, pets, skill_bonus) — ensure both enabled
           if(hpEl) hpEl.disabled = false;
           if(dmgEl) dmgEl.disabled = false;
         }
@@ -438,15 +449,7 @@
             alert('Invalid JSON format: expected { slots: [...] }');
             return;
           }
-          // If imported JSON already contains a computed summary, use it directly as stored data
-          if(obj.summary){
-            storedData = obj;
-            renderStored();
-            e.target.value = '';
-            alert('Imported JSON loaded as stored snapshot');
-            return;
-          }
-          // populate slots (fill missing slots with defaults)
+          // Always populate slots from the imported JSON
           for(let i=0;i<SLOTS;i++){
             const s = obj.slots[i] || {hp:0,dmg:0,sub1:'none',sub1v:0,sub2:'none',sub2v:0};
             const hpEl = document.querySelector(`[name=\"slot_${i}_hp\"]`); if(hpEl) hpEl.value = (s.hp !== undefined && s.hp !== null) ? s.hp : '';
@@ -455,21 +458,29 @@
             if(HEALTH_ONLY.includes(slotName)){
               // ensure damage is zeroed if present
               if(dmgEl){ dmgEl.value = 0; }
-            } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet'))){
+            } else if(DAMAGE_ONLY.includes(slotName) && slotName !== 'mount' && !(slotName && slotName.startsWith && slotName.startsWith('pet')) && slotName !== 'skill_bonus'){
               if(hpEl){ hpEl.value = 0; }
             } else {
-              // mount, pets, and other dual slots: keep both values as provided
+              // mount, pets, skill_bonus, and other dual slots: keep both values as provided
             }
             const sub1 = document.querySelector(`[name="slot_${i}_sub_1"]`); if(sub1) sub1.value = s.sub1 || 'none';
             const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v || 0;
             const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = s.sub2 || 'none';
             const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v || 0;
           }
-          // imported into form; press Store to update stored JSON
-          markDirty(true);
-          highlightDiffs();
-          e.target.value = ''; // reset file input so re-importing same file works
-          alert('Imported JSON into form (press Store to update stored JSON)');
+          // If imported JSON already contains a computed summary, use it directly as stored data
+          if(obj.summary){
+            storedData = obj;
+            renderStored();
+            e.target.value = '';
+            alert('Imported JSON loaded as stored snapshot (form also populated)');
+          } else {
+            // imported into form; press Store to update stored JSON
+            markDirty(true);
+            highlightDiffs();
+            e.target.value = ''; // reset file input so re-importing same file works
+            alert('Imported JSON into form (press Store to update stored JSON)');
+          }
         }catch(err){
           alert('Error parsing JSON: '+err.message);
         }
