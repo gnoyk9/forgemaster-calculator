@@ -17,6 +17,7 @@
     label{font-size:.85rem;color:#374151;width:110px}
     input[type=number],select{flex:1;padding:.4rem;border:1px solid #cbd5e1;border-radius:4px}
     .small{width:80px}
+    #total-hp,#total-dmg,#dps,#hp-regen{width:180px!important}
     .controls{display:flex;gap:.5rem;flex-wrap:wrap}
     .summary{white-space:pre-wrap;font-family:monospace;background:#0f172a;color:#f8fafc;padding:.75rem;border-radius:6px;max-height:220px;overflow:auto}
     button{background:#0ea5a4;color:#fff;border:none;padding:.5rem .75rem;border-radius:6px;cursor:pointer}
@@ -275,7 +276,7 @@
       entries.forEach(([k,v])=>{
         const el = document.createElement('div');
         el.style.background = '#eef2f6'; el.style.borderRadius='6px'; el.style.padding='6px 8px'; el.style.fontSize='.9rem';
-        el.textContent = `${getSubstatLabel(k)}: ${v}`;
+        el.textContent = `${getSubstatLabel(k)}: ${Number(v).toFixed(2)}`;
         container.appendChild(el);
       });
     }
