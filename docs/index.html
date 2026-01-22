@@ -234,15 +234,16 @@
         if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
       });
       // Provisional DPS and HP Regen calculations:
-      const baseDamage = (totals.totalDmg || 0) + (totals.substats['dmg'] || 0);
+      const baseDamage = (totals.totalDmg || 0) * (1+totals.substats['dmg']/100 || 0);
       const atkSpeedFactor = 1 + ((totals.substats['atk_speed'] || 0)/100);
-      const damagePercentFactor = 1 + (((totals.substats['melee_dmg'] || 0) + (totals.substats['ranged_dmg'] || 0) + (totals.substats['skill_dmg'] || 0))/100);
+      const baseAttacksPerSec = 0.5; // assume 0.5 attacks per second base
+      const damagePercentFactor = 1 + ((totals.substats['melee_dmg'] || 0) + (totals.substats['ranged_dmg'] || 0))/100;
       const doubleFactor = 1 + ((totals.substats['double_rate'] || 0)/100);
       const critRate = Math.min(100, (totals.substats['crit_rate'] || 0))/100;
-      const critDmg = (totals.substats['crit_dmg'] || 0)/100;
+      const critDmg = 0.2 + (totals.substats['crit_dmg'] || 0)/100;
       const critFactor = 1 + (critRate * critDmg);
-      const dps = baseDamage * atkSpeedFactor * damagePercentFactor * doubleFactor * critFactor;
-      const hpRegen = (totals.totalHp || 0) * 0.01 + (totals.substats['hp_regen'] || 0) + dps * ((totals.substats['life_steal'] || 0)/100);
+      const dps =  baseDamage * baseAttacksPerSec * atkSpeedFactor * damagePercentFactor * doubleFactor * critFactor;
+      const hpRegen = (totals.totalHp || 0) * (totals.substats['hp_regen'] || 0) / 100 + dps * ((totals.substats['life_steal'] || 0)/100);
       totals.dps = dps;
       totals.hpRegen = hpRegen;
       return totals;
