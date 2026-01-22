@@ -136,7 +136,7 @@
         row1.appendChild(labHp); row1.appendChild(inpHp); row1.appendChild(labDmg); row1.appendChild(inpDmg);
         div.appendChild(row1);
         // attach event listeners and return early (no substats for skill_bonus)
-        [inpHp, inpDmg].forEach(el=>el.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); }));
+        [inpHp, inpDmg].forEach(el=>el.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); if(storedData) renderStored(); }));
         return div;
       } else if(slotName && slotName.startsWith && slotName.startsWith('pet')){
         // Pets have both HP and Damage and contribute to totals like normal slots
@@ -174,7 +174,7 @@
       div.appendChild(row3);
 
       // Event listeners (attach only to existing elements)
-      [inpHp, inpDmg, sel1, sel2, val1, val2].filter(Boolean).forEach(el=>el.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); }));
+      [inpHp, inpDmg, sel1, sel2, val1, val2].filter(Boolean).forEach(el=>el.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); if(storedData) renderStored(); }));
 
       return div;
     }
@@ -255,6 +255,7 @@
       const hpRegen = (totals.totalHp || 0) * (totals.substats['hp_regen'] || 0) / 100 + dps * ((totals.substats['life_steal'] || 0)/100);
       totals.dps = dps;
       totals.hpRegen = hpRegen;
+      totals.totalHp = totals.totalHp * (1 + (totals.substats['health'] || 0)/100);
       return totals;
     }
 
@@ -348,12 +349,35 @@
         totals = computeTotalsFromSlots(storedData.slots || []);
         storedData.summary = totals;
       }
+      
+      // Also compute current form totals for live comparison
+      const currentTotals = getTotals().totals;
+      
       if(previewEl) previewEl.textContent = JSON.stringify({summary:totals,slots:storedData.slots},null,2);
       if(subList) renderSubstats(totals.substats);
-      document.getElementById('total-hp').value = totals.totalHp || 0;
-      document.getElementById('total-dmg').value = totals.totalDmg || 0;
-      const dpsEl = document.getElementById('dps'); if(dpsEl) dpsEl.value = (totals.dps !== undefined ? totals.dps.toFixed(2) : 0);
-      const hpReEl = document.getElementById('hp-regen'); if(hpReEl) hpReEl.value = (totals.hpRegen !== undefined ? totals.hpRegen.toFixed(2) : 0);
+      
+      // Helper to format comparison display: "current (±X%)"
+      const formatComparison = (current, stored) => {
+        current = current || 0;
+        stored = stored || 0;
+        if (stored === 0) {
+          return current.toFixed(2); // can't calc %, just show current
+        }
+        const pct = ((current - stored) / stored) * 100;
+        const pctStr = pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
+        return `${current.toFixed(2)} (${pctStr})`;
+      };
+      
+      // Show all totals with live vs stored comparison
+      document.getElementById('total-hp').value = formatComparison(currentTotals.totalHp, totals.totalHp);
+      document.getElementById('total-dmg').value = formatComparison(currentTotals.totalDmg, totals.totalDmg);
+      
+      const dpsEl = document.getElementById('dps');
+      if(dpsEl) dpsEl.value = formatComparison(currentTotals.dps, totals.dps);
+      
+      const hpReEl = document.getElementById('hp-regen');
+      if(hpReEl) hpReEl.value = formatComparison(currentTotals.hpRegen, totals.hpRegen);
+      
       markDirty(false);
       highlightDiffs();
     }
