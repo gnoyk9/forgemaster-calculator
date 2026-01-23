@@ -342,7 +342,8 @@
           document.querySelector(`[name="slot_${i}_sub_1"]`),
           document.querySelector(`[name="slot_${i}_sub_1_val"]`),
           document.querySelector(`[name="slot_${i}_sub_2"]`),
-          document.querySelector(`[name="slot_${i}_sub_2_val"]`)
+          document.querySelector(`[name="slot_${i}_sub_2_val"]`),
+          document.querySelector(`[name="slot_${i}_weapon_type"]`)
         ];
         els.forEach(e=>{ if(e) setHighlight(e,false); });
       }
@@ -359,6 +360,11 @@
         const val1 = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(val1){ const raw = val1.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub1v === undefined ? null : s.sub1v); setHighlight(val1, norm(curr) !== norm(stored)); }
         const sel2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sel2){ const curr = sel2.value || 'none'; const stored = s.sub2 || 'none'; setHighlight(sel2, curr !== stored); }
         const val2 = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(val2){ const raw = val2.value; const curr = (raw === '' ? null : Number(raw)); const stored = (s.sub2v === undefined ? null : s.sub2v); setHighlight(val2, norm(curr) !== norm(stored)); }
+        // Highlight weapon type if it differs from stored
+        if(slotName === 'weapon'){
+          const weaponTypeEl = document.querySelector(`[name="slot_${i}_weapon_type"]`);
+          if(weaponTypeEl){ const curr = weaponTypeEl.value || 'melee'; const stored = s.weaponType || 'melee'; setHighlight(weaponTypeEl, curr !== stored); }
+        }
       });
     }
 
