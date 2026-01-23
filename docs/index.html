@@ -30,12 +30,10 @@
   <div class="wrap">
     <header>
       <h1>Forgemaster — Item evaluator</h1>
+      <button id="readme" type="button" style="padding:.4rem .6rem;font-size:.9rem">Help</button>
     </header>
 
     <div class="card">
-      <h2 style="margin-top:0">Equipment Slots</h2>
-      <p style="margin:0 0 .5rem">Enter base Health and Damage per slot, choose two substats and enter their values.</p>
-
       <form id="dps-form">
         <div id="slots" class="slots"></div>
 
@@ -162,6 +160,19 @@
 
       div.appendChild(row1);
 
+      // Weapon type selector (only for weapon slot)
+      if(slotName === 'weapon'){
+        const rowWeapon = document.createElement('div'); rowWeapon.className='row';
+        const labWeapon = document.createElement('label'); labWeapon.textContent='Type';
+        const selWeapon = document.createElement('select'); selWeapon.name=`slot_${i}_weapon_type`;
+        ['melee','ranged'].forEach(opt=>{
+          const option = document.createElement('option'); option.value=opt; option.textContent=cap(opt); selWeapon.appendChild(option);
+        });
+        rowWeapon.appendChild(labWeapon); rowWeapon.appendChild(selWeapon);
+        div.appendChild(rowWeapon);
+        selWeapon.addEventListener('input', ()=>{ markDirty(true); highlightDiffs(); if(storedData) renderStored(); });
+      }
+
       // Substat rows
       const row2 = document.createElement('div'); row2.className='row';
       const lab1 = document.createElement('label'); lab1.textContent='Substat 1';
@@ -183,6 +194,24 @@
       return div;
     }
 
+    function showReadme(){
+      alert(`Forgemaster Item Evaluator
+
+1. Enter Equipment: Fill in health, damage, and two substats for each equipment slot.
+
+2. Store Setup: Press "Store" to snapshot your current configuration as the baseline.
+
+3. Compare Changes: Modify values and watch the summary update in real-time. Green/red highlighting shows improvement/decline vs stored baseline.
+
+4. Save & Load: Use "Save (browser localStorage)" to persist data on your device, "Load" to restore it later.
+
+5. Export & Import: Download your setup as JSON to share or backup, import previously saved files.
+
+6. Reset: Clear everything and start over.
+
+7. Pull from Storage: Revert form to the last stored snapshot without affecting other saves.`);
+    }
+
     function init(){
       // update visible slot count
       const sc = document.getElementById('slot-count'); if(sc) sc.textContent = SLOTS;
@@ -192,6 +221,7 @@
       document.getElementById('save').addEventListener('click', saveLocal);
       document.getElementById('load').addEventListener('click', ()=>{ loadLocal(); markDirty(true); });
       document.getElementById('reset').addEventListener('click', ()=>{ resetForm(); markDirty(true); });
+      document.getElementById('readme').addEventListener('click', showReadme);
       document.getElementById('export').addEventListener('click', exportJson);
       const importFile = document.getElementById('import-file');
       document.getElementById('import').addEventListener('click', ()=>importFile.click());
@@ -222,7 +252,13 @@
           // do not zero mount, pet, or skill_bonus HP — they have both inputs
           hp = 0;
         }
-        data.slots.push({hp,dmg,sub1,sub1v,sub2,sub2v});
+        const slot = {hp,dmg,sub1,sub1v,sub2,sub2v};
+        // Add weapon type if it's the weapon slot
+        if(slotName === 'weapon'){
+          const weaponTypeEl = document.querySelector(`[name="slot_${i}_weapon_type"]`);
+          if(weaponTypeEl) slot.weaponType = weaponTypeEl.value || 'melee';
+        }
+        data.slots.push(slot);
       }
       return data;
     }
@@ -247,11 +283,20 @@
         if(s.sub1 && s.sub1 !== 'none') totals.substats[s.sub1] = (totals.substats[s.sub1] || 0) + (s.sub1v || 0);
         if(s.sub2 && s.sub2 !== 'none') totals.substats[s.sub2] = (totals.substats[s.sub2] || 0) + (s.sub2v || 0);
       });
+      // Store weapon type for damage calculation
+      let weaponType = 'melee';
+      const weaponSlot = slots[5]; // weapon is at index 5
+      if(weaponSlot && weaponSlot.weaponType){
+        weaponType = weaponSlot.weaponType;
+      }
       // Provisional DPS and HP Regen calculations:
       const baseDamage = (totals.totalDmg || 0) * (1+totals.substats['dmg']/100 || 0);
       const atkSpeedFactor = 1 + ((totals.substats['atk_speed'] || 0)/100);
       const baseAttacksPerSec = 0.5; // assume 0.5 attacks per second base
-      const damagePercentFactor = 1 + ((totals.substats['melee_dmg'] || 0) + (totals.substats['ranged_dmg'] || 0))/100;
+      // Apply weapon type: melee ignores ranged_dmg, ranged ignores melee_dmg
+      const meleeDmg = weaponType === 'melee' ? (totals.substats['melee_dmg'] || 0) : 0;
+      const rangedDmg = weaponType === 'ranged' ? (totals.substats['ranged_dmg'] || 0) : 0;
+      const damagePercentFactor = 1 + (meleeDmg + rangedDmg)/100;
       const doubleFactor = 1 + ((totals.substats['double_rate'] || 0)/100);
       const critRate = Math.min(100, (totals.substats['crit_rate'] || 0))/100;
       const critDmg = 0.2 + (totals.substats['crit_dmg'] || 0)/100;
@@ -494,6 +539,11 @@
         const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v;
         const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = s.sub2;
         const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v;
+        // Load weapon type if it's the weapon slot
+        if(slotName === 'weapon'){
+          const weaponTypeEl = document.querySelector(`[name="slot_${i}_weapon_type"]`);
+          if(weaponTypeEl && s.weaponType) weaponTypeEl.value = s.weaponType;
+        }
       });
     }
 
@@ -551,6 +601,11 @@
             const sub1v = document.querySelector(`[name="slot_${i}_sub_1_val"]`); if(sub1v) sub1v.value = s.sub1v || 0;
             const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = s.sub2 || 'none';
             const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v || 0;
+            // Load weapon type if it's the weapon slot
+            if(slotName === 'weapon'){
+              const weaponTypeEl = document.querySelector(`[name="slot_${i}_weapon_type"]`);
+              if(weaponTypeEl) weaponTypeEl.value = s.weaponType || 'melee';
+            }
           }
           // If imported JSON already contains a computed summary, use it directly as stored data
           if(obj.summary){
