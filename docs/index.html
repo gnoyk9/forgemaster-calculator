@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Forgemaster Calculator — DPS Builder</title>
+  <title>Forgemaster — Item evaluator</title>
   <style>
     :root{--max-width:980px;--gap:12px}
     body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#f7fafc;color:#0f172a}
@@ -29,11 +29,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Forgemaster Calculator — DPS Builder</h1>
-      <div style="display:flex;gap:.75rem;align-items:center">
-        <div>Slots: <strong id="slot-count">8</strong></div>
-        <div id="store-status" style="font-size:.85rem;color:#64748b">No stored data</div>
-      </div>
+      <h1>Forgemaster — Item evaluator</h1>
     </header>
 
     <div class="card">
@@ -43,15 +39,21 @@
       <form id="dps-form">
         <div id="slots" class="slots"></div>
 
-        <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <button id="store" type="button">Store</button>
-          <button id="pull" type="button">Pull from storage</button>
-          <button id="save" type="button">Save (local)</button>
-          <button id="load" type="button">Load (local)</button>
-          <button id="reset" type="button">Reset</button>
-          <button id="export" type="button">Export JSON</button>
-          <input id="import-file" type="file" accept="application/json" style="display:none" />
-          <button id="import" type="button">Import JSON</button>
+        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.5rem">
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <button id="store" type="button">Store</button>
+            <button id="pull" type="button">Pull from storage</button>
+            <button id="reset" type="button">Reset</button>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <button id="save" type="button">Save (browser localStorage)</button>
+            <button id="load" type="button">Load (browser localStorage)</button>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <button id="export" type="button">Export JSON</button>
+            <input id="import-file" type="file" accept="application/json" style="display:none" />
+            <button id="import" type="button">Import JSON</button>
+          </div>
         </div>
       </form>
     </div>
@@ -580,9 +582,11 @@
         const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = 'none';
         const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = 0;
       }
-      // preview (stored JSON) remains unchanged; mark form as dirty
+      // Reset stored data too
+      storedData = null;
       markDirty(true);
       highlightDiffs();
+      renderStored();
     }
 
     // init
