@@ -330,6 +330,35 @@
       setStatus(isDirty ? 'Unsaved changes' : (storedData ? 'Stored' : 'No stored data'), !isDirty && !!storedData);
     }
 
+    // Calculate background color based on percentage change
+    // Positive changes: light green at small changes, max green at +10% and above
+    // Negative changes: light red at small changes, max red at -10% and below
+    function getChangeColor(current, stored){
+      current = current || 0;
+      stored = stored || 0;
+      if(stored === 0) return ''; // can't calculate percent, no color
+      const pct = ((current - stored) / stored) * 100;
+      const clamped = Math.max(-10, Math.min(10, pct));
+      
+      if(clamped === 0) return ''; // no change, no color
+      
+      if(clamped > 0){
+        // Green: interpolate from white to #4ade80
+        const intensity = clamped / 10;
+        const r = Math.round(255 - (255 - 74) * intensity);
+        const g = Math.round(255 - (255 - 222) * intensity);
+        const b = Math.round(255 - (255 - 128) * intensity);
+        return `rgb(${r},${g},${b})`;
+      } else {
+        // Red: interpolate from white to #f87171
+        const intensity = -clamped / 10;
+        const r = Math.round(255 - (255 - 248) * intensity);
+        const g = Math.round(255 - (255 - 113) * intensity);
+        const b = Math.round(255 - (255 - 113) * intensity);
+        return `rgb(${r},${g},${b})`;
+      }
+    }
+
     function renderStored(){
       const previewEl = document.getElementById('preview');
       const subList = document.getElementById('substats-list');
@@ -372,14 +401,25 @@
       };
       
       // Show all totals with live vs stored comparison
-      document.getElementById('total-hp').value = formatComparison(currentTotals.totalHp, totals.totalHp);
-      document.getElementById('total-dmg').value = formatComparison(currentTotals.totalDmg, totals.totalDmg);
+      const totalHpEl = document.getElementById('total-hp');
+      totalHpEl.value = formatComparison(currentTotals.totalHp, totals.totalHp);
+      totalHpEl.style.backgroundColor = getChangeColor(currentTotals.totalHp, totals.totalHp);
+      
+      const totalDmgEl = document.getElementById('total-dmg');
+      totalDmgEl.value = formatComparison(currentTotals.totalDmg, totals.totalDmg);
+      totalDmgEl.style.backgroundColor = getChangeColor(currentTotals.totalDmg, totals.totalDmg);
       
       const dpsEl = document.getElementById('dps');
-      if(dpsEl) dpsEl.value = formatComparison(currentTotals.dps, totals.dps);
+      if(dpsEl){
+        dpsEl.value = formatComparison(currentTotals.dps, totals.dps);
+        dpsEl.style.backgroundColor = getChangeColor(currentTotals.dps, totals.dps);
+      }
       
       const hpReEl = document.getElementById('hp-regen');
-      if(hpReEl) hpReEl.value = formatComparison(currentTotals.hpRegen, totals.hpRegen);
+      if(hpReEl){
+        hpReEl.value = formatComparison(currentTotals.hpRegen, totals.hpRegen);
+        hpReEl.style.backgroundColor = getChangeColor(currentTotals.hpRegen, totals.hpRegen);
+      }
       
       markDirty(false);
       highlightDiffs();
@@ -425,6 +465,7 @@
       pullFromStorageData(storedData);
       markDirty(false);
       highlightDiffs();
+      renderStored();
     }
 
     function pullFromStorageData(obj){
@@ -459,8 +500,11 @@
       if(!raw){alert('No saved data');return}
       const obj = JSON.parse(raw);
       pullFromStorageData(obj);
-      // loaded into form; stored JSON is not changed until you press Store
-      markDirty(true);      highlightDiffs();
+      // Also load into storedData so it becomes the current snapshot
+      storedData = obj;
+      markDirty(false);
+      highlightDiffs();
+      renderStored();
     }
 
     function exportJson(){
