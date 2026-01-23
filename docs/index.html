@@ -45,6 +45,7 @@
 
         <div style="margin-top:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <button id="store" type="button">Store</button>
+          <button id="pull" type="button">Pull from storage</button>
           <button id="save" type="button">Save (local)</button>
           <button id="load" type="button">Load (local)</button>
           <button id="reset" type="button">Reset</button>
@@ -185,6 +186,7 @@
       const sc = document.getElementById('slot-count'); if(sc) sc.textContent = SLOTS;
       for(let i=0;i<SLOTS;i++) slotsContainer.appendChild(makeSlot(i));
       document.getElementById('store').addEventListener('click', storeData);
+      document.getElementById('pull').addEventListener('click', pullFromStorage);
       document.getElementById('save').addEventListener('click', saveLocal);
       document.getElementById('load').addEventListener('click', ()=>{ loadLocal(); markDirty(true); });
       document.getElementById('reset').addEventListener('click', ()=>{ resetForm(); markDirty(true); });
@@ -416,13 +418,17 @@
     function saveLocal(){
       if(!storedData){ alert('No stored JSON — press the Store button first'); return; }
       localStorage.setItem('dps_builder', JSON.stringify(storedData));
-      alert('Saved stored JSON to localStorage');
     }
 
-    function loadLocal(){
-      const raw = localStorage.getItem('dps_builder');
-      if(!raw){alert('No saved data');return}
-      const obj = JSON.parse(raw);
+    function pullFromStorage(){
+      if(!storedData){ alert('No stored data — press the Store button first'); return; }
+      pullFromStorageData(storedData);
+      markDirty(false);
+      highlightDiffs();
+    }
+
+    function pullFromStorageData(obj){
+      if(!obj || !Array.isArray(obj.slots)) return;
       obj.slots.forEach((s,i)=>{
         const hpEl = document.querySelector(`[name="slot_${i}_hp"]`);
         const dmgEl = document.querySelector(`[name="slot_${i}_dmg"]`);
@@ -446,8 +452,15 @@
         const sub2 = document.querySelector(`[name="slot_${i}_sub_2"]`); if(sub2) sub2.value = s.sub2;
         const sub2v = document.querySelector(`[name="slot_${i}_sub_2_val"]`); if(sub2v) sub2v.value = s.sub2v;
       });
+    }
+
+    function loadLocal(){
+      const raw = localStorage.getItem('dps_builder');
+      if(!raw){alert('No saved data');return}
+      const obj = JSON.parse(raw);
+      pullFromStorageData(obj);
       // loaded into form; stored JSON is not changed until you press Store
-      markDirty(true);      highlightDiffs();      alert('Loaded saved data into the form (press Store to update stored JSON)');
+      markDirty(true);      highlightDiffs();
     }
 
     function exportJson(){
@@ -498,13 +511,11 @@
             storedData = obj;
             renderStored();
             e.target.value = '';
-            alert('Imported JSON loaded as stored snapshot (form also populated)');
           } else {
             // imported into form; press Store to update stored JSON
             markDirty(true);
             highlightDiffs();
             e.target.value = ''; // reset file input so re-importing same file works
-            alert('Imported JSON into form (press Store to update stored JSON)');
           }
         }catch(err){
           alert('Error parsing JSON: '+err.message);
