@@ -297,7 +297,7 @@
       const meleeDmg = weaponType === 'melee' ? (totals.substats['melee_dmg'] || 0) : 0;
       const rangedDmg = weaponType === 'ranged' ? (totals.substats['ranged_dmg'] || 0) : 0;
       const damagePercentFactor = 1 + (meleeDmg + rangedDmg)/100;
-      const doubleFactor = 1 + ((totals.substats['double_rate'] || 0)/100);
+      const doubleFactor = 1 + (Math.min(100, (totals.substats['double_rate'] || 0))/100);
       const critRate = Math.min(100, (totals.substats['crit_rate'] || 0))/100;
       const critDmg = 0.2 + (totals.substats['crit_dmg'] || 0)/100;
       const critFactor = 1 + (critRate * critDmg);
@@ -654,4 +654,5 @@
     document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
+
 </html>
